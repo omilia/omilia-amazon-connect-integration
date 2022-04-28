@@ -1,5 +1,4 @@
-# omilia-amazon-connect-integration
-Integrate Omilia with Amazon Connect  
+# omilia-amazon-connect-integration  
 ## Integration of Omilia Cloud Platform and Amazon Connect
 This repository keeps the AWS Cloudformation template, support scripts and Sample Amazon Connect Flows that will get an Amazon Connect Instance integrate directly with OCP miniApps in a matter of minutes.
 The guide and templates assume the user has an Amazon account and an Amazon Connect instance already set up. 
