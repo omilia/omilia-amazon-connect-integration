@@ -1,0 +1,329 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  This template creates all necessary AWS resources to integrate Amazon Connect 
+  and Omilia. 
+Parameters:
+  LambdaRoleName:
+    Type: String
+    Default: OmiliaLambdaConnectRole
+    Description: Define a name for the role to assign to the lambda function
+  GatewayRoleName:
+    Type: String
+    Default: OmiliaGatewayConnectRole
+    Description: Define a name for the role necessary for the API to trigger the
+      Lambda Function
+  LambdaFunctionName:
+    Type: String
+    Default: OmiliaConnectLambdaFunction
+    Description: Define a name for Lambda Function
+  ApiName:
+    Type: String
+    Default: OmiliaConnectApi
+    Description: "Define a name for the API "
+  ApiKeyValue:
+    Type: String
+    Default: 1234567890ABCDEGHIJKLMNOPQR
+    Description: Define your API gateway key
+  ApiKeyName:
+    Type: String
+    Default: OmiliaApplicationApiKey
+    Description: Define your API key resource name
+  UsagePlanLimit:
+    Type: Number
+    Default: 50000
+    Description: Define your API usage quota
+  UsagePlanName:
+    Type: String
+    Default: OmiliaUsagePlan
+    Description: Define your Usage plan name
+Outputs:
+  ApiUrl:
+    Description: The URL to be used in the Omilia application to send data back to
+      Amazon Connect
+    Value:
+      Fn::Sub: https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+Resources:
+  OmiliaConnectRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Ref: LambdaRoleName
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: Omilia_Connect_Table
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: Stmt1649610119662
+                Action:
+                  - dynamodb:BatchGetItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                  - dynamodb:UpdateTable
+                Effect: Allow
+                Resource:
+                  Fn::GetAtt:
+                    - DynamoDBTable
+                    - Arn
+  OmiliaApiGatewayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Ref: GatewayRoleName
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: Stmt1649610119662
+                Action:
+                  - lambda:GetFunction
+                  - lambda:InvokeFunction
+                Effect: Allow
+                Resource:
+                  Fn::GetAtt:
+                    - LambdaFunction
+                    - Arn
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: DNIS
+          AttributeType: S
+      KeySchema:
+        - AttributeName: DNIS
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: "5"
+        WriteCapacityUnits: "5"
+      TableName: omilia_pstn_integration
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName:
+        Ref: LambdaFunctionName
+      Handler: index.lambda_handler
+      Role:
+        Fn::GetAtt:
+          - OmiliaConnectRole
+          - Arn
+      Code:
+        ZipFile: >+
+          import json
+
+          import boto3
+
+          import botocore
+
+
+
+          def lambda_handler(event,context):
+
+
+              client = boto3.resource("dynamodb")
+              table = client.Table("omilia_pstn_integration")
+              
+              command = event.get('cmd', None)
+              if command is None: 
+                  command = event['Details']['Parameters']['cmd']
+              if command is None:
+                  return({"result":"error", "message": "cmd cannot be null"})
+
+
+              if(command == 'store_data'):
+                  try:
+              
+                      table.update_item(
+                              Key={'DNIS': event['DNIS']},
+                              UpdateExpression="SET AttachedData=:d",
+                              ExpressionAttributeValues={':d': event['AttachedData']},
+                              ReturnValues="UPDATED_NEW"
+                              )
+                      return({"result":"success","message":"data updated"})
+                  except botocore.exceptions.ClientError as error:
+                      raise error
+                      return({"result":"error"})
+
+              if(command == 'add_numbers'):
+                  try:
+                      for number in event['numbers']:  
+                          table.put_item(       
+                              Item={
+                          'DNIS': number,
+                          'Available': True,
+                          'AttachedData': "",
+                          })
+                      return({"result":"success","message":"numbers added"})
+                  except botocore.exceptions.ClientError as error:
+                      raise error
+
+                  
+              if(command == 'get_attached_data'):
+                  attached_data = table.get_item(Key={
+                  'DNIS': event['Details']['Parameters']['DNIS']
+              })
+                  if (attached_data is not None and attached_data['Item']['AttachedData'] is not "" ): 
+                      return(attached_data['Item']['AttachedData'])
+                  else: 
+                      return({"result":"error"})
+                 
+                  
+              if(command == 'get_available_number'):
+                  numbers = table.scan()['Items']
+                  for number in numbers:
+                      if number['Available']:
+                          try:
+                              response = table.update_item(
+                                  Key={'DNIS': number['DNIS']},
+                                  UpdateExpression="SET Available=:a",
+                                  ExpressionAttributeValues={':a': False},
+                                  ReturnValues="UPDATED_NEW"
+                                  )
+                              resultMap = {"phone_number": number['DNIS']}
+                              return resultMap
+                          except botocore.exceptions.ClientError as error:
+                              raise error
+                              return({"result":"error"})
+                      else: 
+                          continue
+                  return("No_Available_Numbers")
+                  print(numbers)
+              
+              if(command == 'clean_number'):
+                  try:
+                      table.update_item(
+                              Key={'DNIS': event['Details']['Parameters']['DNIS']},
+                              UpdateExpression="SET Available=:a, AttachedData=:d",
+                              ExpressionAttributeValues={':a': True, ':d': ""},
+                              ReturnValues="UPDATED_NEW"
+                              )
+                      return({"result":"success","message":"number clean"})
+                  except botocore.exceptions.ClientError as error:
+                      raise error
+                      return({"result":"error"})
+              
+
+                  
+                  
+                  
+
+      Runtime: python3.9
+      Timeout: 600
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Name:
+        Ref: ApiName
+  ApiResourcePost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: true
+      RestApiId:
+        Ref: RestApi
+      ResourceId:
+        Fn::GetAtt:
+          - RestApi
+          - RootResourceId
+      HttpMethod: POST
+      AuthorizationType: NONE
+      MethodResponses:
+        - StatusCode: "200"
+        - StatusCode: "400"
+        - StatusCode: "502"
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: "200"
+          - StatusCode: "400"
+          - StatusCode: "502"
+        Credentials:
+          Fn::GetAtt:
+            - OmiliaApiGatewayRole
+            - Arn
+        Uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations
+  ApiDeployment:
+    DependsOn: ApiResourcePost
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId:
+        Ref: RestApi
+      Description: Deployment of Rest API for Omilia's integration with Amazon Connect
+      StageName: default
+  ApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name:
+        Ref: ApiKeyName
+      Description: Api Key for Omilia's Application to transfer data to Amazon Connect
+      Enabled: true
+      Value:
+        Ref: ApiKeyValue
+    DependsOn:
+      - RestApi
+      - ApiResourcePost
+  UsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      Description: Amazon Connect Omilia Usage Plan
+      Quota:
+        Limit:
+          Ref: UsagePlanLimit
+        Period: MONTH
+      ApiStages:
+        - ApiId:
+            Ref: RestApi
+          Stage:
+            Ref: ApiProdStage
+      Throttle:
+        BurstLimit: 200
+        RateLimit: 100
+      UsagePlanName:
+        Ref: UsagePlanName
+  UsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId:
+        Ref: ApiKey
+      KeyType: API_KEY
+      UsagePlanId:
+        Ref: UsagePlan
+  ApiProdStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: prod
+      Description: Prod Stage
+      RestApiId:
+        Ref: RestApi
+      DeploymentId:
+        Ref: ApiDeployment
+      Variables:
+        Stack: Prod
+      MethodSettings:
+        - ResourcePath: /
+          HttpMethod: GET
+          MetricsEnabled: "true"
+          DataTraceEnabled: "false"
+        - ResourcePath: /
+          HttpMethod: POST
+          MetricsEnabled: "true"
+          DataTraceEnabled: "false"
+          ThrottlingBurstLimit: "999"

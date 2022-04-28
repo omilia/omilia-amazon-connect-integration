@@ -1,0 +1,30 @@
+[
+    {
+        "ParameterKey": "LambdaRoleName",
+        "ParameterValue": "OmiliaLambdaRole"
+    },
+    {
+        "ParameterKey": "GatewayRoleName",
+        "ParameterValue": "OmiliaGatewayRole"
+    },
+    {
+        "ParameterKey": "LambdaFunctionName",
+        "ParameterValue": "OmiliaLambdaFunction"
+    },
+    {
+        "ParameterKey": "ApiName",
+        "ParameterValue": "OmiliaApi"
+    },
+    {
+        "ParameterKey": "ApiKeyValue",
+        "ParameterValue": "cafuneerafasfasnfasklgnaslgnalsgnaslkgnasklgnaslgnasgl"
+    },
+    {
+        "ParameterKey": "UsagePlanLimit",
+        "ParameterValue": "5000"
+    },
+    {
+        "ParameterKey": "UsagePlanName",
+        "ParameterValue": "OmiliaUsagePlan"
+    }
+]
