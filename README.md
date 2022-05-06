@@ -3,7 +3,7 @@
 This repository keeps the AWS Cloudformation template, support scripts and Sample Amazon Connect Flows that will get an Amazon Connect Instance integrate directly with OCP miniApps in a matter of minutes.
 The guide and templates assume the user has an Amazon account and an Amazon Connect instance already set up. 
 
-For more information and a step by step guide please download the [Integration Guide](https://omilia.com/wp-content/uploads/2022/04/amazon-connect-integration-step-by-step.pdf).
+For more information and a step by step guide please download the [Integration Guide](https://omilia.com/wp-content/uploads/2022/05/amazon-connect-integration-step-by-step.pdf).
 
 ## AWS CloudFormation template
 To run the AWS CloudFormation template using the AWS CLI, you can use the parameters json included in the Templates folder as a template. Change your parameter values as desired. You can see an example usage below: 
