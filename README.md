@@ -17,8 +17,8 @@ aws cloudformation create-stack \
 ```
 ## Support scripts 
 
-To add your OCP acquired numbers to your integration with Amazon Connect, there's a simple python CLI script that helps doing just that. Provide as parameters, the URL created by your API Gateway, the API Key you created and the numbers, space separated as per the example below: 
+To add your OCP acquired numbers to your integration with Amazon Connect, there's a simple python CLI script that helps doing just that. Provide the URL created by your API Gateway and the API Key you created and the numbers as parameters, space separated as per the example below: 
 
 ```console
-python add_numbers.py -u https://wbuj4w6w5f.execute-api.us-east-1.amazonaws.com/prod -k your_api_key_goes_here --numbers +13304708019 +17276084253 +18133950034 +18172038783 +19546211639
+python add_numbers.py -u your_url_goes_here -k your_api_key_goes_here --numbers +13304708019 +17276084253 +18133950034 +18172038783 +19546211639
 ```
